@@ -1,0 +1,380 @@
+{
+  "name": "Full Dashboard",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n    MONTH(TransactionDate) AS MonthNumber,\n    DATENAME(MONTH, TransactionDate) AS MonthName,\n    SUM(TransactionAmount) AS TotalTransactionAmount\nFROM [WideWorldImporters].[Reports].[CustomerTransactionsView]\nWHERE YEAR(TransactionDate) = 2016\n    AND TransactionAmount > 0\nGROUP BY MONTH(TransactionDate), DATENAME(MONTH, TransactionDate)\nORDER BY MONTH(TransactionDate);"
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        -880,
+        -224
+      ],
+      "id": "2ff5edd9-8c2b-487d-b119-98a861acf369",
+      "name": "Microsoft SQL - Customer Transactions",
+      "credentials": {
+        "microsoftSql": {
+          "id": "AtQQde4iygfxummY",
+          "name": "Wide World Importers"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n    s.SupplierName,\n    SUM(st.TransactionAmount) AS TotalTransactionAmount\nFROM [WideWorldImporters].[Purchasing].[SupplierTransactions] st\nINNER JOIN [WideWorldImporters].[Purchasing].[Suppliers] s\n    ON st.SupplierID = s.SupplierID\nWHERE st.TransactionAmount > 0\nGROUP BY s.SupplierID, s.SupplierName\nORDER BY s.SupplierName;"
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        -880,
+        -32
+      ],
+      "id": "bcf08949-75c6-49ce-b995-a777a6eaf723",
+      "name": "Microsoft SQL - Supplier Transactions",
+      "credentials": {
+        "microsoftSql": {
+          "id": "AtQQde4iygfxummY",
+          "name": "Wide World Importers"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n    BinLocation,\n    SUM(QuantityOnHand) AS TotalQuantityOnHand\nFROM [WideWorldImporters].[Warehouse].[StockItemHoldings]\nWHERE YEAR(LastEditedWhen) = 2016\nGROUP BY BinLocation\nORDER BY BinLocation;"
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        -880,
+        160
+      ],
+      "id": "33e306f7-252e-4f54-b8be-8e0b2d07fff4",
+      "name": "Microsoft SQL - Stock Locations",
+      "credentials": {
+        "microsoftSql": {
+          "id": "AtQQde4iygfxummY",
+          "name": "Wide World Importers"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "customerTransactions",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        -656,
+        -224
+      ],
+      "id": "c881e65a-5209-4dfb-9b37-853d3860ef22",
+      "name": "Aggregate - Customer Transaction"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "supplierTransactions",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        -656,
+        -32
+      ],
+      "id": "94977968-92f0-44bc-ba1c-53871b986351",
+      "name": "Aggregate - Supplier Transactions"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "stockLocations",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        -656,
+        160
+      ],
+      "id": "5b6aad2a-5d0c-4782-b974-32c4658aded3",
+      "name": "Aggregate - Stock Locations"
+    },
+    {
+      "parameters": {
+        "numberInputs": 4
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -432,
+        32
+      ],
+      "id": "3ad969fe-0ef2-46cc-b4f2-0877485a0f0d",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "html": "<!DOCTYPE html>\n<html>\n<head>\n  <meta charset=\"UTF-8\" />\n  <title>Dashboard - Customer, Supplier, and Stock Analytics</title>\n  <style>\n    body {\n      font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\";\n      font-size: 9pt;\n      margin: 20px;\n      background-color: #f5f5f5;\n      {{ $json.data[3].cssBackground }}\n    }\n    \n    h2 {\n      color: #333;\n      margin-top: 0;\n      margin-bottom: 20px;\n      text-align: center;\n      font-size: 18px;\n      font-weight: 600;\n    }\n    \n    .chart-panel {\n      background-color: #ffffff;\n      border-radius: 8px;\n      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);\n      padding: 20px;\n    }\n    \n    .top-charts-container {\n      display: flex;\n      gap: 20px;\n      margin-bottom: 20px;\n    }\n    \n    .chart-wrapper {\n      flex: 1;\n      min-width: 0;\n    }\n    \n    .chart-wrapper-full {\n      width: 100%;\n    }\n    \n    #customerTransactionsChart {\n      width: 100%;\n      height: 400px;\n    }\n    \n    #supplierTransactionsChart {\n      width: 100%;\n      height: 400px;\n    }\n    \n    #stockLocationsChart {\n      width: 100%;\n      height: 600px;\n    }\n  </style>\n</head>\n<body>\n  \n  <div class=\"top-charts-container\">\n    <div class=\"chart-wrapper\">\n      <div class=\"chart-panel\">\n        <h2>Customer Transactions by Month</h2>\n        <div id=\"customerTransactionsChart\"></div>\n      </div>\n    </div>\n    \n    <div class=\"chart-wrapper\">\n      <div class=\"chart-panel\">\n        <h2>Supplier Transactions</h2>\n        <div id=\"supplierTransactionsChart\"></div>\n      </div>\n    </div>\n  </div>\n  \n  <div class=\"chart-wrapper-full\">\n    <div class=\"chart-panel\">\n      <h2>Stock Item Locations</h2>\n      <div id=\"stockLocationsChart\"></div>\n    </div>\n  </div>\n  \n  <!-- AmCharts Scripts -->\n  <script src=\"//cdn.amcharts.com/lib/4/core.js\"></script>\n  <script src=\"//cdn.amcharts.com/lib/4/charts.js\"></script>\n  <script src=\"//cdn.amcharts.com/lib/4/themes/animated.js\"></script>\n  <script src=\"//cdn.amcharts.com/lib/4/themes/kelly.js\"></script>\n  <script src=\"//cdn.amcharts.com/lib/4/plugins/forceDirected.js\"></script>\n  \n  <script>\n    // Apply chart themes globally\n    am4core.useTheme(am4themes_animated);\n    am4core.useTheme(am4themes_kelly);\n    \n    // ========================================\n    // CUSTOMER TRANSACTIONS CHART (XY Column)\n    // ========================================\n    \n    // Create chart instance\n    var customerTransactionsChart = am4core.create(\"customerTransactionsChart\", am4charts.XYChart);\n    \n    // Add data\n    customerTransactionsChart.data = {{ $json.data[0].customerTransactions.toJsonString() }}\n    \n    // Create axes\n    var customerTransactionsCategoryAxis = customerTransactionsChart.xAxes.push(new am4charts.CategoryAxis());\n    customerTransactionsCategoryAxis.dataFields.category = \"MonthName\";\n    customerTransactionsCategoryAxis.title.text = \"Month\";\n    customerTransactionsCategoryAxis.renderer.grid.template.location = 0;\n    customerTransactionsCategoryAxis.renderer.minGridDistance = 20;\n    \n    var customerTransactionsValueAxis = customerTransactionsChart.yAxes.push(new am4charts.ValueAxis());\n    customerTransactionsValueAxis.title.text = \"Transaction Amount ($)\";\n    \n    // Create series\n    var customerTransactionsSeries = customerTransactionsChart.series.push(new am4charts.ColumnSeries());\n    customerTransactionsSeries.dataFields.valueY = \"TotalTransactionAmount\";\n    customerTransactionsSeries.dataFields.categoryX = \"MonthName\";\n    customerTransactionsSeries.name = \"Customer Transactions\";\n    customerTransactionsSeries.tooltipText = \"{name}: [bold]${valueY.formatNumber('#,###.00')}[/]\";\n    customerTransactionsSeries.columns.template.fill = am4core.color(\"#67b7dc\");\n    \n    // Add cursor\n    customerTransactionsChart.cursor = new am4charts.XYCursor();\n    \n    \n    // ========================================\n    // SUPPLIER TRANSACTIONS CHART (Pie)\n    // ========================================\n    \n    // Create chart instance\n    var supplierTransactionsChart = am4core.create(\"supplierTransactionsChart\", am4charts.PieChart);\n    \n    // Add data\n    supplierTransactionsChart.data = {{ $json.data[1].supplierTransactions.toJsonString() }}\n    \n    // Add and configure Series\n    var supplierPieSeries = supplierTransactionsChart.series.push(new am4charts.PieSeries());\n    supplierPieSeries.dataFields.value = \"TotalTransactionAmount\";\n    supplierPieSeries.dataFields.category = \"SupplierName\";\n    \n    // Configure labels to show percentages\n    supplierPieSeries.labels.template.text = \"{category}: {value.percent.formatNumber('#.0')}%\";\n    \n    // Configure tooltips to show currency\n    supplierPieSeries.slices.template.tooltipText = \"{category}: [bold]${value.formatNumber('#,###.00')}[/]\";\n    supplierTransactionsChart.innerRadius = am4core.percent(40);\n    \n    supplierPieSeries.slices.template.stroke = am4core.color(\"#4a2abb\");\n    supplierPieSeries.slices.template.strokeWidth = 2;\n    supplierPieSeries.slices.template.strokeOpacity = 1;\n    \n    // Add a legend\n    supplierTransactionsChart.legend = new am4charts.Legend();\n    \n    \n    // ========================================\n    // STOCK LOCATIONS CHART (Force Directed)\n    // ========================================\n    \n    // Create chart\n    var stockLocationsChart = am4core.create(\"stockLocationsChart\", am4plugins_forceDirected.ForceDirectedTree);\n    \n    // Create series\n    var stockLocationsSeries = stockLocationsChart.series.push(new am4plugins_forceDirected.ForceDirectedSeries());\n    \n    // Original data\n    var stockData = {{ $json.data[2].stockLocations.toJsonString() }}\n    \n    // Group data by location prefix\n    var groupedStockData = {};\n    stockData.forEach(function(item) {\n      var prefix = item.BinLocation.split('-')[0];\n      if (!groupedStockData[prefix]) {\n        groupedStockData[prefix] = [];\n      }\n      groupedStockData[prefix].push({\n        name: item.BinLocation,\n        value: item.TotalQuantityOnHand\n      });\n    });\n    \n    // Convert to hierarchical format\n    var hierarchicalStockData = [];\n    for (var prefix in groupedStockData) {\n      hierarchicalStockData.push({\n        name: \"Zone \" + prefix,\n        children: groupedStockData[prefix]\n      });\n    }\n    \n    // Set data\n    stockLocationsSeries.data = hierarchicalStockData;\n    \n    // Set up data fields\n    stockLocationsSeries.dataFields.value = \"value\";\n    stockLocationsSeries.dataFields.name = \"name\";\n    stockLocationsSeries.dataFields.children = \"children\";\n    \n    // Add labels\n    stockLocationsSeries.nodes.template.label.text = \"{name}\";\n    stockLocationsSeries.fontSize = 9;\n    stockLocationsSeries.minRadius = 20;\n    stockLocationsSeries.maxRadius = 60;\n    stockLocationsSeries.centerStrength = 0.5;\n    \n    // Configure tooltips\n    stockLocationsSeries.nodes.template.tooltipText = \"{name}: [bold]{value.formatNumber('#,###')}[/] units\";\n    \n    // Make nodes draggable\n    stockLocationsSeries.nodes.template.draggable = true;\n  </script>\n  \n</body>\n</html>"
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        16,
+        64
+      ],
+      "id": "510c7208-f4a7-49f0-aa46-8d31b6c5054e",
+      "name": "HTML"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.html }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        240,
+        64
+      ],
+      "id": "9baf4378-309d-43b8-bc4d-f7c7f393e2e5",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "path": "2ee09b35-40e7-4d6d-b38b-88add90ae4b0",
+        "responseMode": "responseNode",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1104,
+        64
+      ],
+      "id": "58385ffc-c5c8-4b20-814f-524ae0727b66",
+      "name": "Webhook",
+      "webhookId": "2ee09b35-40e7-4d6d-b38b-88add90ae4b0"
+    },
+    {
+      "parameters": {
+        "fileSelector": "/usr/share/misc/sales-dash/dashboard.png",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        -880,
+        352
+      ],
+      "id": "4fefa6fa-e146-490a-8161-37633107196d",
+      "name": "Read - Background Image"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the binary data from the input\nconst items = $input.all();\n\n// Process each item\nreturn items.map(item => {\n  // Get the binary data (assuming it's in the default 'data' field)\n  const binaryData = item.binary.data;\n  \n  // Convert buffer to base64\n  const base64String = binaryData.data;\n  \n  // Create the data URI for CSS usage\n  const mimeType = binaryData.mimeType || 'image/png';\n  const dataUri = `data:${mimeType};base64,${base64String}`;\n  \n  // Return the item with the base64 string\n  return {\n    json: {\n      base64: base64String,\n      dataUri: dataUri,\n      cssBackground: `background-image: url('${dataUri}');`\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -656,
+        352
+      ],
+      "id": "6f2e7990-42a4-4ddb-8665-ba2d356e7274",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        -208,
+        64
+      ],
+      "id": "f723655d-6a6e-4955-ad9b-549700f11fbe",
+      "name": "Aggregate - Transactions and Background"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Microsoft SQL - Stock Locations": {
+      "main": [
+        [
+          {
+            "node": "Aggregate - Stock Locations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Microsoft SQL - Customer Transactions": {
+      "main": [
+        [
+          {
+            "node": "Aggregate - Customer Transaction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Microsoft SQL - Supplier Transactions": {
+      "main": [
+        [
+          {
+            "node": "Aggregate - Supplier Transactions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate - Customer Transaction": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate - Supplier Transactions": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Aggregate - Stock Locations": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Aggregate - Transactions and Background",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Microsoft SQL - Customer Transactions",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Microsoft SQL - Supplier Transactions",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Microsoft SQL - Stock Locations",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read - Background Image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read - Background Image": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Aggregate - Transactions and Background": {
+      "main": [
+        [
+          {
+            "node": "HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "852c7a93-7bc1-468f-a31a-e5aaec0fa3d8",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "366a1a751f9a3b5e7b4b2e8a43b0f07169862a019298a19820bb0a996986a56f"
+  },
+  "id": "gTc8KSEnVmVHlk9X",
+  "tags": []
+}
